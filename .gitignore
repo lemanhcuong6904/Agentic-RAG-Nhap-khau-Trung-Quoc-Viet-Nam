@@ -17,6 +17,8 @@ data/raw/
 data/manifests/
 data/interim/
 data/processed/
+data/curated/
+data/quarantine/
 data/indexes/
 reports/
 
