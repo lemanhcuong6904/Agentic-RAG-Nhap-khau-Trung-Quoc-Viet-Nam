@@ -13,9 +13,11 @@ class Settings(BaseSettings):
     manifests_dir: Path = Path("data/manifests")
     interim_dir: Path = Path("data/interim")
     processed_dir: Path = Path("data/processed")
+    curated_dir: Path = Path("data/curated")
+    quarantine_dir: Path = Path("data/quarantine")
     indexes_dir: Path = Path("data/indexes")
     reports_dir: Path = Path("reports")
-    parser_version: str = "mvp-0.1.0"
+    parser_version: str = "mvp-0.2.0"
 
     def resolve_paths(self) -> "Settings":
         root = self.project_root
@@ -24,6 +26,8 @@ class Settings(BaseSettings):
             "manifests_dir",
             "interim_dir",
             "processed_dir",
+            "curated_dir",
+            "quarantine_dir",
             "indexes_dir",
             "reports_dir",
         ):
