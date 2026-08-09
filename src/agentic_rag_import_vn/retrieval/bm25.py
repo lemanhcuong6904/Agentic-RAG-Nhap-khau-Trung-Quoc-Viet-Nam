@@ -34,9 +34,13 @@ def build_index(chunks: pd.DataFrame) -> dict[str, object]:
                 "title": row["title"],
                 "relative_path": row["relative_path"],
                 "category": row["category"],
+                "document_role": row.get("document_role"),
                 "agreement": row.get("agreement"),
                 "page": row.get("page"),
                 "section": row.get("section"),
+                "quality_status": row.get("quality_status"),
+                "provenance_quality": row.get("provenance_quality"),
+                "temporal_quality": row.get("temporal_quality"),
                 "text": row["text"],
             }
         )
@@ -61,7 +65,9 @@ def load_index(path: Path | None = None) -> dict[str, object]:
 
 def run_build_bm25() -> Path:
     ensure_dirs([settings.indexes_dir / "bm25"])
-    chunks = read_table(settings.processed_dir / "legal_chunks.parquet")
+    chunks = read_table(settings.curated_dir / "legal" / "legal_chunks.parquet")
+    if not chunks.empty and "quality_status" in chunks.columns:
+        chunks = chunks[chunks["quality_status"] == "pass"].copy()
     index = build_index(chunks)
     return save_index(index, settings.indexes_dir / "bm25" / "legal_index.json")
 

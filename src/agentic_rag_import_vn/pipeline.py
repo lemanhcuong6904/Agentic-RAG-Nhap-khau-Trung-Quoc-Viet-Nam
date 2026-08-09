@@ -6,6 +6,7 @@ from agentic_rag_import_vn.console import make_console
 from agentic_rag_import_vn.ingestion.inventory import run_inventory
 from agentic_rag_import_vn.ingestion.text_extract import run_text_extraction
 from agentic_rag_import_vn.processing.chunking import run_chunking
+from agentic_rag_import_vn.processing.curation import run_curate_legal
 from agentic_rag_import_vn.processing.vnaccs import run_vnaccs_build
 from agentic_rag_import_vn.retrieval.bm25 import run_build_bm25
 
@@ -23,8 +24,14 @@ def cmd_inventory(_: argparse.Namespace) -> None:
 
 def cmd_extract_text(args: argparse.Namespace) -> None:
     output = run_text_extraction(limit=args.limit)
-    console.print("[green]Text extraction complete[/green]")
-    console.print(f"page text: {output}")
+    console.print("[green]Canonical parsing complete[/green]")
+    console.print(f"parsed json: {output}")
+
+
+def cmd_curate_legal(_: argparse.Namespace) -> None:
+    output = run_curate_legal()
+    console.print("[green]Legal curation complete[/green]")
+    console.print(f"curated legal pages: {output}")
 
 
 def cmd_build_chunks(_: argparse.Namespace) -> None:
@@ -48,6 +55,7 @@ def cmd_build_vnaccs(_: argparse.Namespace) -> None:
 def cmd_all(args: argparse.Namespace) -> None:
     cmd_inventory(args)
     cmd_extract_text(args)
+    cmd_curate_legal(args)
     cmd_build_chunks(args)
     cmd_build_bm25(args)
     cmd_build_vnaccs(args)
@@ -66,6 +74,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     chunks = subparsers.add_parser("build-chunks", help="Build legal text chunks with provenance")
     chunks.set_defaults(func=cmd_build_chunks)
+
+    curate = subparsers.add_parser("curate-legal", help="Promote validated legal pages into curated zone")
+    curate.set_defaults(func=cmd_curate_legal)
 
     bm25 = subparsers.add_parser("build-bm25", help="Build lexical retrieval index")
     bm25.set_defaults(func=cmd_build_bm25)
