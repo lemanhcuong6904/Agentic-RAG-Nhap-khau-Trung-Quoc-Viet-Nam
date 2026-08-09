@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 import pandas as pd
@@ -13,14 +14,19 @@ from agentic_rag_import_vn.io_utils import ensure_dirs, read_table, write_table
 TEXT_CATEGORIES = {"legal", "origin", "vat", "hs", "tariff"}
 TEXT_EXTENSIONS = {"pdf", "docx", "xlsx", "xls", "csv", "txt"}
 
+logging.getLogger("pypdf").setLevel(logging.ERROR)
+
 
 def extract_pdf(path: Path) -> list[dict[str, object]]:
     from pypdf import PdfReader
 
     rows: list[dict[str, object]] = []
-    reader = PdfReader(str(path))
+    reader = PdfReader(str(path), strict=False)
     for index, page in enumerate(reader.pages, start=1):
-        text = page.extract_text() or ""
+        try:
+            text = page.extract_text() or ""
+        except Exception as exc:
+            text = f"[PAGE_EXTRACTION_ERROR] {exc!r}"
         rows.append({"page": index, "section": None, "text": text.strip()})
     return rows
 
