@@ -32,3 +32,11 @@ def test_agent_graph_warns_for_unavailable_hs() -> None:
     response = answer_query("Máy xay cà phê điện có mã HS nào?")
     assert response.tool_calls
     assert any("HS structured tool is not available" in warning for warning in response.warnings)
+
+
+def test_product_synonym_finds_arowana_hs_evidence() -> None:
+    result = search_legal_documents("Mã hàng cho hàng hóa cá rồng là gì?", top_k=5)
+    evidence_text = " ".join(item.text or "" for item in result.evidence)
+    assert result.status == "success"
+    assert "0301 11 95" in evidence_text
+    assert "Arowanas" in evidence_text

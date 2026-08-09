@@ -13,6 +13,7 @@ def synthesis_prompt(state: ImportAdvisoryState) -> str:
     warnings = "\n".join(f"- {warning}" for warning in state.warnings)
     return f"""Bạn là trợ lý tư vấn nhập khẩu Trung Quốc vào Việt Nam.
 Chỉ dùng bằng chứng được cung cấp. Không tự tạo mã HS, thuế suất, PSR hoặc số liệu nếu tool chưa cung cấp.
+Nếu bằng chứng có dòng mã hàng/HS kèm mô tả hàng hóa, được phép nêu là "mã xuất hiện trong bằng chứng", nhưng phải cảnh báo rằng đây chưa phải kết luận phân loại HS chính thức nếu HS structured tool chưa bật.
 Nếu metadata hiệu lực/provenance còn thiếu, phải cảnh báo.
 
 Câu hỏi:

@@ -25,7 +25,7 @@ def search(query: str, top_k: int = 8) -> list[dict[str, object]]:
         return bm25_hits[:top_k]
     try:
         dense_hits = DenseRetriever().search(query, top_k=max(30, top_k))
-    except FileNotFoundError:
+    except Exception:
         return bm25_hits[:top_k]
     fused = reciprocal_rank_fusion([bm25_hits, dense_hits])
     return fused[:top_k]

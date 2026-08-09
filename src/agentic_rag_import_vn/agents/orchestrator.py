@@ -9,6 +9,8 @@ from agentic_rag_import_vn.config import settings
 from agentic_rag_import_vn.llm.prompts import synthesis_prompt
 from agentic_rag_import_vn.llm.provider import get_llm_provider
 from agentic_rag_import_vn.quality.text import normalized_key
+from agentic_rag_import_vn.retrieval.bm25 import tokenize
+from agentic_rag_import_vn.retrieval.query_expansion import expand_query
 from agentic_rag_import_vn.schemas import Evidence, ImportAdvisoryState, ToolCallTrace, VerificationResult
 from agentic_rag_import_vn.tools.legal import search_legal_documents
 from agentic_rag_import_vn.tools.vnaccs import lookup_vnaccs
@@ -50,7 +52,7 @@ def understand_intents(query: str) -> list[str]:
         intents.append("origin_guidance")
     if any(term in text for term in ["thue", "mfn", "vat"]):
         intents.append("tariff_lookup")
-    if "hs" in text or HS_RE.search(query):
+    if "hs" in text or "ma hang" in text or "ma hs" in text or HS_RE.search(query):
         intents.append("hs_classification")
     if not intents or any(term in text for term in ["quy dinh", "huong dan", "dieu", "nghi dinh", "thong tu"]):
         intents.append("legal_qa")
@@ -145,7 +147,7 @@ def synthesize_answer(state: ImportAdvisoryState) -> ImportAdvisoryState:
         lines.append("Nguồn pháp lý liên quan:")
         for idx, hit in enumerate(state.legal_evidence[:5], start=1):
             page = f", trang {hit.get('page')}" if hit.get("page") else ""
-            lines.append(f"{idx}. {hit.get('title')}{page}: {str(hit.get('text'))[:420]}")
+            lines.append(f"{idx}. {hit.get('title')}{page}: {evidence_snippet(str(hit.get('text') or ''), state.query)}")
     if not lines:
         lines.append("Chưa tìm thấy dữ liệu phù hợp trong các capability đang bật.")
     if state.warnings:
@@ -155,6 +157,24 @@ def synthesize_answer(state: ImportAdvisoryState) -> ImportAdvisoryState:
             lines.append(f"- {warning}")
     state.final_answer = "\n".join(lines)
     return state
+
+
+def evidence_snippet(text: str, query: str, max_chars: int = 760) -> str:
+    if len(text) <= max_chars:
+        return text
+    expanded_terms = [term for term in tokenize(expand_query(query)) if len(term) >= 4]
+    lowered = text.lower()
+    positions = [lowered.find(term.lower()) for term in expanded_terms]
+    positions = [position for position in positions if position >= 0]
+    if not positions:
+        return text[:max_chars]
+    center = min(positions)
+    start = max(0, center - max_chars // 2)
+    end = min(len(text), start + max_chars)
+    start = max(0, end - max_chars)
+    prefix = "... " if start else ""
+    suffix = " ..." if end < len(text) else ""
+    return f"{prefix}{text[start:end]}{suffix}"
 
 
 def run_graph(query: str, query_date: date | None = None, session_id: str | None = None) -> ImportAdvisoryState:

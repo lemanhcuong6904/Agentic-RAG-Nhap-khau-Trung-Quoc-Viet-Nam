@@ -10,12 +10,12 @@ from agentic_rag_import_vn.io_utils import ensure_dirs, read_table
 from agentic_rag_import_vn.retrieval.bm25 import json_clean
 
 
-def load_embedding_model():
+def load_embedding_model(*, local_files_only: bool = False):
     if settings.embedding_provider != "sentence_transformers":
         raise RuntimeError(f"Unsupported embedding provider: {settings.embedding_provider}")
     from sentence_transformers import SentenceTransformer
 
-    return SentenceTransformer(settings.embedding_model)
+    return SentenceTransformer(settings.embedding_model, local_files_only=local_files_only)
 
 
 def dense_index_paths() -> tuple[Path, Path]:
@@ -80,7 +80,7 @@ class DenseRetriever:
         self._vectors = np.load(self.vectors_path)
         metadata = json.loads(self.metadata_path.read_text(encoding="utf-8"))
         self._docs = metadata["docs"]
-        self._model = load_embedding_model()
+        self._model = load_embedding_model(local_files_only=True)
 
     def search(self, query: str, top_k: int = 20) -> list[dict[str, object]]:
         self.load()
