@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pandas as pd
@@ -7,6 +8,8 @@ from tqdm import tqdm
 
 from agentic_rag_import_vn.config import settings
 from agentic_rag_import_vn.io_utils import ensure_dirs, read_table, write_table
+from agentic_rag_import_vn.quality.audit import finish_run, new_run, write_events, write_processing_run
+from agentic_rag_import_vn.quality.text import normalized_key
 
 
 VNACCS_EXTENSIONS = {"xlsx", "xls", "csv"}
@@ -21,6 +24,11 @@ def compact_row(values: list[object]) -> tuple[str | None, str]:
     return code, description
 
 
+def looks_like_header_or_noise(code: str) -> bool:
+    key = normalized_key(code)
+    return key in {"stt", "ma", "code", "ky hieu"} or key.startswith("danh sach")
+
+
 def read_workbook_rows(path: Path) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     if path.suffix.lower() == ".csv":
@@ -32,9 +40,7 @@ def read_workbook_rows(path: Path) -> list[dict[str, object]]:
         df = df.dropna(how="all")
         for row_index, row in df.iterrows():
             code, description = compact_row(row.tolist())
-            if not code:
-                continue
-            if code.lower() in {"stt", "mã", "ma", "code"}:
+            if not code or looks_like_header_or_noise(code):
                 continue
             rows.append(
                 {
@@ -43,16 +49,18 @@ def read_workbook_rows(path: Path) -> list[dict[str, object]]:
                     "code": code,
                     "description": description,
                     "search_text": f"{code} {description}".strip(),
+                    "quality_status": "pass" if code.strip() else "review",
                 }
             )
     return rows
 
 
 def run_vnaccs_build() -> Path:
-    ensure_dirs([settings.processed_dir / "vnaccs_codes", settings.manifests_dir])
+    run = new_run("build_vnaccs")
+    ensure_dirs([settings.processed_dir / "vnaccs_codes", settings.curated_dir / "vnaccs", settings.manifests_dir])
     registry = read_table(settings.processed_dir / "document_registry.parquet")
     candidates = registry[
-        (registry["category"] == "vnaccs")
+        (registry["document_role"] == "vnaccs_dictionary")
         & registry["file_type"].isin(VNACCS_EXTENSIONS)
         & registry["duplicate_of"].isna()
     ].copy()
@@ -79,31 +87,73 @@ def run_vnaccs_build() -> Path:
                     "source_document_id": doc["document_id"],
                     "source_title": doc["title"],
                     "source_path": doc["relative_path"],
+                    "source_sha256": doc.get("sha256"),
                     "code_group": doc["title"],
                     "status": doc.get("status", "unknown"),
+                    "parser_version": settings.parser_version,
+                    "provenance_quality": "pass",
                 }
             )
             all_rows.append(row)
 
     if errors:
-        error_path = settings.manifests_dir / "vnaccs_errors.csv"
-        write_table(pd.DataFrame(errors), error_path)
+        write_table(pd.DataFrame(errors), settings.manifests_dir / "vnaccs_errors.csv")
 
-    output = settings.processed_dir / "vnaccs_codes" / "vnaccs_codes.parquet"
-    return write_table(pd.DataFrame(all_rows), output)
+    df = pd.DataFrame(all_rows)
+    processed = write_table(df, settings.processed_dir / "vnaccs_codes" / "vnaccs_codes.parquet")
+    curated = df[df["quality_status"] == "pass"].copy() if not df.empty else df
+    write_table(curated, settings.curated_dir / "vnaccs" / "vnaccs_codes.parquet")
+    write_processing_run(
+        finish_run(run, metrics={"documents_attempted": len(candidates), "rows": len(df), "errors": len(errors)})
+    )
+    write_events(
+        [
+            {
+                "run_id": run["run_id"],
+                "stage": "build_vnaccs",
+                "event_type": "artifact_written",
+                "artifact": str(processed),
+            }
+        ]
+    )
+    return processed
+
+
+def query_terms(query: str) -> list[str]:
+    stopwords = {
+        "tra",
+        "tim",
+        "tìm",
+        "ma",
+        "mã",
+        "vnaccs",
+        "la",
+        "là",
+        "gi",
+        "gì",
+        "cho",
+        "toi",
+        "tôi",
+        "cua",
+        "của",
+    }
+    terms = [term.lower() for term in re.findall(r"[\w\d]+", query, flags=re.UNICODE)]
+    return [term for term in terms if term not in stopwords and len(term) > 1]
 
 
 def search_vnaccs(query: str, top_k: int = 20) -> list[dict[str, object]]:
-    path = settings.processed_dir / "vnaccs_codes" / "vnaccs_codes.parquet"
+    path = settings.curated_dir / "vnaccs" / "vnaccs_codes.parquet"
+    if not path.exists():
+        path = settings.processed_dir / "vnaccs_codes" / "vnaccs_codes.parquet"
     df = read_table(path)
     if df.empty:
         return []
-    terms = [term.lower() for term in query.split() if term.strip()]
+    terms = query_terms(query)
     if not terms:
         return []
-    mask = pd.Series([True] * len(df))
     haystack = df["search_text"].fillna("").str.lower()
+    mask = pd.Series([False] * len(df))
     for term in terms:
-        mask &= haystack.str.contains(term, regex=False)
+        mask |= haystack.str.contains(term, regex=False)
     results = df[mask].head(top_k)
     return results.fillna("").to_dict(orient="records")
