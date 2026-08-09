@@ -275,6 +275,10 @@ def run_text_extraction(limit: int | None = None) -> Path:
 
     if errors:
         write_table(pd.DataFrame(errors), settings.manifests_dir / "ingestion_errors.parquet")
+    else:
+        stale_errors = settings.manifests_dir / "ingestion_errors.parquet"
+        if stale_errors.exists():
+            stale_errors.unlink()
     if table_cells:
         write_table(pd.DataFrame(table_cells), settings.interim_dir / "raw_tables" / "cells.parquet")
     quality_path = write_table(pd.DataFrame(quality_rows), settings.reports_dir / "extraction_quality" / "page_quality.parquet")

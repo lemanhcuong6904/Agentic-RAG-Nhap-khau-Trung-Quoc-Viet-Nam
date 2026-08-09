@@ -64,6 +64,7 @@ def run_vnaccs_build() -> Path:
         & registry["file_type"].isin(VNACCS_EXTENSIONS)
         & registry["duplicate_of"].isna()
     ].copy()
+    candidates = candidates[~candidates["file_name"].str.lower().isin({"metadata.csv"})].copy()
 
     all_rows: list[dict[str, object]] = []
     errors: list[dict[str, object]] = []
@@ -98,6 +99,10 @@ def run_vnaccs_build() -> Path:
 
     if errors:
         write_table(pd.DataFrame(errors), settings.manifests_dir / "vnaccs_errors.csv")
+    else:
+        stale_errors = settings.manifests_dir / "vnaccs_errors.csv"
+        if stale_errors.exists():
+            stale_errors.unlink()
 
     df = pd.DataFrame(all_rows)
     processed = write_table(df, settings.processed_dir / "vnaccs_codes" / "vnaccs_codes.parquet")
@@ -137,8 +142,13 @@ def query_terms(query: str) -> list[str]:
         "cua",
         "của",
     }
-    terms = [term.lower() for term in re.findall(r"[\w\d]+", query, flags=re.UNICODE)]
+    terms = normalized_key(query).split()
     return [term for term in terms if term not in stopwords and len(term) > 1]
+
+
+def code_terms(query: str) -> list[str]:
+    tokens = re.findall(r"[A-Za-z0-9]{2,}", query)
+    return [token.lower() for token in tokens if token.isupper() or any(ch.isdigit() for ch in token)]
 
 
 def search_vnaccs(query: str, top_k: int = 20) -> list[dict[str, object]]:
@@ -152,8 +162,20 @@ def search_vnaccs(query: str, top_k: int = 20) -> list[dict[str, object]]:
     if not terms:
         return []
     haystack = df["search_text"].fillna("").str.lower()
-    mask = pd.Series([False] * len(df))
+    exact_code = pd.Series([False] * len(df))
+    for term in code_terms(query):
+        exact_code |= df["code"].fillna("").str.lower().eq(term)
+    if exact_code.any():
+        results = df[exact_code].head(top_k)
+        return results.fillna("").to_dict(orient="records")
+
+    any_mask = pd.Series([False] * len(df))
+    all_mask = pd.Series([True] * len(df))
     for term in terms:
-        mask |= haystack.str.contains(term, regex=False)
-    results = df[mask].head(top_k)
+        term_mask = haystack.str.contains(term, regex=False)
+        any_mask |= term_mask
+        all_mask &= term_mask
+    strict_results = df[all_mask]
+    fallback_results = df[any_mask & ~all_mask]
+    results = pd.concat([strict_results, fallback_results], ignore_index=True).head(top_k)
     return results.fillna("").to_dict(orient="records")
