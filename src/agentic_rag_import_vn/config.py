@@ -33,14 +33,14 @@ class Settings(BaseSettings):
     require_evidence: bool = True
     agent_max_retries: int = 2
 
-    llm_provider: str = "none"
-    llm_model: str = ""
+    llm_provider: str = "openai"
+    llm_model: str = "gpt-4o-mini"
     openai_api_key: str = ""
 
-    embedding_provider: str = "none"
-    embedding_model: str = ""
-    enable_dense_retrieval: bool = False
-    enable_hybrid_retrieval: bool = False
+    embedding_provider: str = "sentence_transformers"
+    embedding_model: str = "BAAI/bge-m3"
+    enable_dense_retrieval: bool = True
+    enable_hybrid_retrieval: bool = True
     enable_reranker: bool = False
 
     def resolve_paths(self) -> "Settings":

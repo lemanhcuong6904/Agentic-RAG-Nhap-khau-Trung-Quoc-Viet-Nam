@@ -2,6 +2,7 @@ beautifulsoup4
 duckdb
 fastapi
 openpyxl
+openai
 pandas
 pyarrow
 pydantic

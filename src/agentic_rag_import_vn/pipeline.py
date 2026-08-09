@@ -9,6 +9,7 @@ from agentic_rag_import_vn.processing.chunking import run_chunking
 from agentic_rag_import_vn.processing.curation import run_curate_legal
 from agentic_rag_import_vn.processing.vnaccs import run_vnaccs_build
 from agentic_rag_import_vn.retrieval.bm25 import run_build_bm25
+from agentic_rag_import_vn.retrieval.dense import run_build_dense
 
 console = make_console()
 
@@ -46,6 +47,12 @@ def cmd_build_bm25(_: argparse.Namespace) -> None:
     console.print(f"index: {output}")
 
 
+def cmd_build_dense(_: argparse.Namespace) -> None:
+    output = run_build_dense()
+    console.print("[green]Dense index complete[/green]")
+    console.print(f"index: {output}")
+
+
 def cmd_build_vnaccs(_: argparse.Namespace) -> None:
     output = run_vnaccs_build()
     console.print("[green]VNACCS lookup build complete[/green]")
@@ -80,6 +87,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     bm25 = subparsers.add_parser("build-bm25", help="Build lexical retrieval index")
     bm25.set_defaults(func=cmd_build_bm25)
+
+    dense = subparsers.add_parser("build-dense", help="Build dense vector index for curated legal chunks")
+    dense.set_defaults(func=cmd_build_dense)
 
     vnaccs = subparsers.add_parser("build-vnaccs", help="Build structured VNACCS lookup table")
     vnaccs.set_defaults(func=cmd_build_vnaccs)

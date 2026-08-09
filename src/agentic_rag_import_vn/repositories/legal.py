@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from agentic_rag_import_vn.config import settings
 from agentic_rag_import_vn.retrieval.bm25 import search as bm25_search
+from agentic_rag_import_vn.retrieval.hybrid import search as hybrid_search
 from agentic_rag_import_vn.schemas import Evidence
 
 
@@ -13,7 +15,8 @@ class LegalRepository:
         document_role: list[str] | None = None,
         top_k: int = 8,
     ) -> list[dict[str, object]]:
-        hits = bm25_search(query, top_k=max(top_k * 4, top_k))
+        search_fn = hybrid_search if settings.enable_hybrid_retrieval else bm25_search
+        hits = search_fn(query, top_k=max(top_k * 4, top_k))
         filtered: list[dict[str, object]] = []
         roles = set(document_role or [])
         for hit in hits:

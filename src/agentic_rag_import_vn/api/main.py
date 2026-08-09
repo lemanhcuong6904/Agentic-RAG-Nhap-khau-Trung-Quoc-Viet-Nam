@@ -48,6 +48,13 @@ def health() -> dict[str, object]:
             "hybrid_retrieval": settings.enable_hybrid_retrieval,
             "reranker": settings.enable_reranker,
         },
+        "models": {
+            "llm_provider": settings.llm_provider,
+            "llm_model": settings.llm_model,
+            "llm_ready": bool(settings.openai_api_key),
+            "embedding_provider": settings.embedding_provider,
+            "embedding_model": settings.embedding_model,
+        },
     }
 
 

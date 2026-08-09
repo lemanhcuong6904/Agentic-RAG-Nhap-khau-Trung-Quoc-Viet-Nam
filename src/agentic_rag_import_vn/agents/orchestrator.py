@@ -6,6 +6,8 @@ from datetime import date
 from uuid import uuid4
 
 from agentic_rag_import_vn.config import settings
+from agentic_rag_import_vn.llm.prompts import synthesis_prompt
+from agentic_rag_import_vn.llm.provider import get_llm_provider
 from agentic_rag_import_vn.quality.text import normalized_key
 from agentic_rag_import_vn.schemas import Evidence, ImportAdvisoryState, ToolCallTrace, VerificationResult
 from agentic_rag_import_vn.tools.legal import search_legal_documents
@@ -122,6 +124,15 @@ def verify_state(state: ImportAdvisoryState) -> ImportAdvisoryState:
 
 
 def synthesize_answer(state: ImportAdvisoryState) -> ImportAdvisoryState:
+    if settings.llm_provider != "none" and settings.openai_api_key and state.evidence_pool:
+        try:
+            response = get_llm_provider().generate(synthesis_prompt(state))
+            if response.text:
+                state.final_answer = response.text
+                return state
+        except Exception as exc:
+            state.warnings.append(f"LLM synthesis unavailable, used deterministic fallback: {exc!r}")
+
     lines: list[str] = []
     if state.verification and state.verification.unsupported_claims:
         lines.append("Chưa đủ bằng chứng từ các tool đang bật để trả lời chắc chắn.")
