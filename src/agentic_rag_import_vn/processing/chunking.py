@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import math
 from pathlib import Path
 
 import pandas as pd
@@ -35,6 +36,19 @@ def chunk_text(text: str, max_chars: int = 1400, overlap: int = 180) -> list[str
     return chunks
 
 
+def stable_location(value: object) -> str:
+    if value is None:
+        return "0"
+    if isinstance(value, float) and math.isnan(value):
+        return "0"
+    if pd.isna(value):
+        return "0"
+    text = str(value).strip()
+    if text.endswith(".0") and text[:-2].isdigit():
+        return text[:-2]
+    return re.sub(r"[^A-Za-z0-9_.-]+", "_", text) or "0"
+
+
 def run_chunking() -> Path:
     ensure_dirs([settings.processed_dir, settings.curated_dir / "legal"])
     pages_path = settings.curated_dir / "legal" / "legal_pages.parquet"
@@ -44,11 +58,12 @@ def run_chunking() -> Path:
     pages = read_table(pages_path)
     rows: list[dict[str, object]] = []
     for _, row in pages.iterrows():
+        location = stable_location(row.get("page")) if stable_location(row.get("page")) != "0" else stable_location(row.get("section"))
         for index, chunk in enumerate(chunk_text(str(row["text"])), start=1):
-            fingerprint = f"{row['document_id']}:{row.get('page') or row.get('section') or 0}:{index}:{len(chunk)}"
+            fingerprint = f"{row['document_id']}:{location}:{index}:{len(chunk)}"
             rows.append(
                 {
-                    "chunk_id": f"{row['document_id']}-{row.get('page') or row.get('section') or 0}-{index}",
+                    "chunk_id": f"{row['document_id']}-{location}-{index}",
                     "content_fingerprint": fingerprint,
                     "document_id": row["document_id"],
                     "title": row["title"],

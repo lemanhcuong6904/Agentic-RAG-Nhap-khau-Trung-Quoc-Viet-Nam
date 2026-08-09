@@ -19,6 +19,23 @@ def tokenize(text: str) -> list[str]:
     return TOKEN_RE.findall(str(text).lower())
 
 
+def json_clean(value: object) -> object:
+    if value is None:
+        return None
+    if isinstance(value, float):
+        if math.isnan(value) or math.isinf(value):
+            return None
+        if value.is_integer():
+            return int(value)
+        return value
+    try:
+        if pd.isna(value):
+            return None
+    except Exception:
+        pass
+    return value
+
+
 def build_index(chunks: pd.DataFrame) -> dict[str, object]:
     docs = []
     df_counter: Counter[str] = Counter()
@@ -29,19 +46,19 @@ def build_index(chunks: pd.DataFrame) -> dict[str, object]:
         df_counter.update(set(tokens))
         docs.append(
             {
-                "chunk_id": row["chunk_id"],
-                "document_id": row["document_id"],
-                "title": row["title"],
-                "relative_path": row["relative_path"],
-                "category": row["category"],
-                "document_role": row.get("document_role"),
-                "agreement": row.get("agreement"),
-                "page": row.get("page"),
-                "section": row.get("section"),
-                "quality_status": row.get("quality_status"),
-                "provenance_quality": row.get("provenance_quality"),
-                "temporal_quality": row.get("temporal_quality"),
-                "text": row["text"],
+                "chunk_id": json_clean(row["chunk_id"]),
+                "document_id": json_clean(row["document_id"]),
+                "title": json_clean(row["title"]),
+                "relative_path": json_clean(row["relative_path"]),
+                "category": json_clean(row["category"]),
+                "document_role": json_clean(row.get("document_role")),
+                "agreement": json_clean(row.get("agreement")),
+                "page": json_clean(row.get("page")),
+                "section": json_clean(row.get("section")),
+                "quality_status": json_clean(row.get("quality_status")),
+                "provenance_quality": json_clean(row.get("provenance_quality")),
+                "temporal_quality": json_clean(row.get("temporal_quality")),
+                "text": json_clean(row["text"]),
             }
         )
     return {
@@ -54,7 +71,7 @@ def build_index(chunks: pd.DataFrame) -> dict[str, object]:
 
 def save_index(index: dict[str, object], path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(index, ensure_ascii=False), encoding="utf-8")
+    path.write_text(json.dumps(index, ensure_ascii=False, allow_nan=False), encoding="utf-8")
     return path
 
 
